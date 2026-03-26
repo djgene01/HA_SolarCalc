@@ -1,0 +1,357 @@
+input_number:
+  prepaid_balance_kwh:
+    name: Prepaid Balance
+    min: 0
+    max: 100000
+    step: 0.01
+    unit_of_measurement: "kWh"
+    icon: mdi:battery-high
+    mode: box
+
+  prepaid_topup_kwh:
+    name: Prepaid Top Up
+    min: 0
+    max: 100000
+    step: 0.01
+    unit_of_measurement: "kWh"
+    icon: mdi:cash-plus
+    mode: box
+
+  prepaid_energy_used_total:
+    name: Prepaid Energy Used Total
+    min: 0
+    max: 1000000
+    step: 0.000001
+    unit_of_measurement: "kWh"
+    icon: mdi:flash
+    mode: box
+
+  prepaid_energy_month_total:
+    name: Prepaid Energy Month Total
+    min: 0
+    max: 1000000
+    step: 0.000001
+    unit_of_measurement: "kWh"
+    icon: mdi:calendar-month
+    mode: box
+
+  prepaid_cost_per_kwh:
+    name: Prepaid Cost Per kWh
+    min: 0
+    max: 100
+    step: 0.0001
+    unit_of_measurement: "R/kWh"
+    icon: mdi:cash
+    mode: box
+
+  solar_energy_used_total:
+    name: Solar Energy Used Total
+    min: 0
+    max: 1000000
+    step: 0.000001
+    unit_of_measurement: "kWh"
+    icon: mdi:solar-power
+    mode: box
+
+  solar_energy_today_total:
+    name: Solar Energy Today Total
+    min: 0
+    max: 1000000
+    step: 0.000001
+    unit_of_measurement: "kWh"
+    icon: mdi:weather-sunny
+    mode: box
+
+  solar_energy_month_total:
+    name: Solar Energy Month Total
+    min: 0
+    max: 1000000
+    step: 0.000001
+    unit_of_measurement: "kWh"
+    icon: mdi:calendar-month
+    mode: box
+
+input_button:
+  prepaid_apply_topup:
+    name: Apply Prepaid Top Up
+    icon: mdi:plus-circle
+
+template:
+  - sensor:
+      - name: "Prepaid Grid Power"
+        unique_id: prepaid_grid_power
+        unit_of_measurement: "W"
+        device_class: power
+        state_class: measurement
+        state: "{{ states('sensor.wifi_smart_meter_pro_power') | float(0) }}"
+
+      - name: "Solar Usage Power"
+        unique_id: solar_usage_power
+        unit_of_measurement: "W"
+        device_class: power
+        state_class: measurement
+        state: "{{ states('sensor.deye_sunsynk_sol_ark_load_power_essential') | float(0) }}"
+
+      - name: "Prepaid Remaining"
+        unique_id: prepaid_remaining
+        unit_of_measurement: "kWh"
+        device_class: energy
+        state_class: measurement
+        state: "{{ states('input_number.prepaid_balance_kwh') | float(0) }}"
+
+      - name: "Prepaid Top Up Pending"
+        unique_id: prepaid_top_up_pending
+        unit_of_measurement: "kWh"
+        device_class: energy
+        state_class: measurement
+        state: "{{ states('input_number.prepaid_topup_kwh') | float(0) }}"
+
+      - name: "Prepaid Grid Energy Total"
+        unique_id: prepaid_grid_energy_total
+        unit_of_measurement: "kWh"
+        device_class: energy
+        state_class: total_increasing
+        state: "{{ states('input_number.prepaid_energy_used_total') | float(0) | round(6) }}"
+
+      - name: "Prepaid Used Total"
+        unique_id: prepaid_used_total
+        unit_of_measurement: "kWh"
+        device_class: energy
+        state_class: total_increasing
+        state: "{{ states('input_number.prepaid_energy_used_total') | float(0) | round(6) }}"
+
+      - name: "Prepaid Energy Monthly"
+        unique_id: prepaid_energy_monthly
+        unit_of_measurement: "kWh"
+        device_class: energy
+        state_class: measurement
+        state: "{{ states('input_number.prepaid_energy_month_total') | float(0) | round(6) }}"
+
+      - name: "Estimated Grid Usage Per Month"
+        unique_id: estimated_grid_usage_per_month
+        unit_of_measurement: "kWh"
+        device_class: energy
+        state_class: measurement
+        state: >
+          {% set month_total = states('input_number.prepaid_energy_month_total') | float(0) %}
+          {% set today = now() %}
+          {% set next_month = (today.replace(day=28) + timedelta(days=4)).replace(day=1) %}
+          {% set days_in_month = (next_month - today.replace(day=1)).days %}
+          {% set days_elapsed = today.day %}
+          {{ ((month_total / days_elapsed) * days_in_month) | round(2) }}
+
+      - name: "Estimated Grid Cost Per Month"
+        unique_id: estimated_grid_cost_per_month
+        unit_of_measurement: "R"
+        icon: mdi:cash-fast
+        state: >
+          {% set estimated_kwh = states('sensor.estimated_grid_usage_per_month') | float(0) %}
+          {% set cost_per_kwh = states('input_number.prepaid_cost_per_kwh') | float(0) %}
+          {{ (estimated_kwh * cost_per_kwh) | round(2) }}
+
+      - name: "Prepaid Cost Today"
+        unique_id: prepaid_cost_today
+        unit_of_measurement: "R"
+        icon: mdi:cash-clock
+        state: >
+          {{
+            (
+              (states('sensor.prepaid_grid_energy_daily') | float(0)) *
+              (states('input_number.prepaid_cost_per_kwh') | float(0))
+            ) | round(2)
+          }}
+
+      - name: "Prepaid Cost Month"
+        unique_id: prepaid_cost_month
+        unit_of_measurement: "R"
+        icon: mdi:cash-multiple
+        state: >
+          {{
+            (
+              (states('input_number.prepaid_energy_month_total') | float(0)) *
+              (states('input_number.prepaid_cost_per_kwh') | float(0))
+            ) | round(2)
+          }}
+
+      - name: "Solar Energy Total"
+        unique_id: solar_energy_total
+        unit_of_measurement: "kWh"
+        device_class: energy
+        state_class: total_increasing
+        state: "{{ states('input_number.solar_energy_used_total') | float(0) | round(6) }}"
+
+      - name: "Solar Energy Daily"
+        unique_id: solar_energy_daily
+        unit_of_measurement: "kWh"
+        device_class: energy
+        state_class: measurement
+        state: "{{ states('input_number.solar_energy_today_total') | float(0) | round(6) }}"
+
+      - name: "Solar Energy Monthly"
+        unique_id: solar_energy_monthly
+        unit_of_measurement: "kWh"
+        device_class: energy
+        state_class: measurement
+        state: "{{ states('input_number.solar_energy_month_total') | float(0) | round(6) }}"
+
+      - name: "Solar Revenue Today"
+        unique_id: solar_revenue_today
+        unit_of_measurement: "R"
+        icon: mdi:cash-plus
+        state: >
+          {{
+            (
+              (states('input_number.solar_energy_today_total') | float(0)) *
+              (states('input_number.prepaid_cost_per_kwh') | float(0))
+            ) | round(2)
+          }}
+
+      - name: "Solar Revenue Month"
+        unique_id: solar_revenue_month
+        unit_of_measurement: "R"
+        icon: mdi:cash-plus
+        state: >
+          {{
+            (
+              (states('input_number.solar_energy_month_total') | float(0)) *
+              (states('input_number.prepaid_cost_per_kwh') | float(0))
+            ) | round(2)
+          }}
+
+  - binary_sensor:
+      - name: "Prepaid Depleted"
+        unique_id: prepaid_depleted
+        state: "{{ states('input_number.prepaid_balance_kwh') | float(0) <= 0 }}"
+        icon: mdi:alert
+
+utility_meter:
+  prepaid_grid_energy_daily:
+    source: sensor.prepaid_grid_energy_total
+    cycle: daily
+
+automation:
+  - id: prepaid_apply_topup_button
+    alias: Prepaid Apply Top Up Button
+    trigger:
+      - platform: state
+        entity_id: input_button.prepaid_apply_topup
+    condition:
+      - condition: numeric_state
+        entity_id: input_number.prepaid_topup_kwh
+        above: 0
+    action:
+      - service: input_number.set_value
+        target:
+          entity_id: input_number.prepaid_balance_kwh
+        data:
+          value: >
+            {{
+              (states('input_number.prepaid_balance_kwh') | float(0)) +
+              (states('input_number.prepaid_topup_kwh') | float(0))
+            }}
+      - service: input_number.set_value
+        target:
+          entity_id: input_number.prepaid_topup_kwh
+        data:
+          value: 0
+
+  - id: prepaid_deduct_energy_every_10s
+    alias: Prepaid Deduct Energy Every 10s
+    trigger:
+      - platform: time_pattern
+        seconds: "/10"
+    variables:
+      power_w: "{{ states('sensor.wifi_smart_meter_pro_power') | float(0) }}"
+      used_kwh: "{{ (power_w * 10 / 3600000) | float(0) }}"
+      current_balance: "{{ states('input_number.prepaid_balance_kwh') | float(0) }}"
+      current_total: "{{ states('input_number.prepaid_energy_used_total') | float(0) }}"
+      current_month_total: "{{ states('input_number.prepaid_energy_month_total') | float(0) }}"
+      new_balance: "{{ [current_balance - used_kwh, 0] | max }}"
+      new_total: "{{ current_total + used_kwh }}"
+      new_month_total: "{{ current_month_total + used_kwh }}"
+    action:
+      - service: input_number.set_value
+        target:
+          entity_id: input_number.prepaid_balance_kwh
+        data:
+          value: "{{ new_balance }}"
+      - service: input_number.set_value
+        target:
+          entity_id: input_number.prepaid_energy_used_total
+        data:
+          value: "{{ new_total }}"
+      - service: input_number.set_value
+        target:
+          entity_id: input_number.prepaid_energy_month_total
+        data:
+          value: "{{ new_month_total }}"
+
+  - id: prepaid_reset_month_total
+    alias: Prepaid Reset Month Total
+    trigger:
+      - platform: time
+        at: "00:00:00"
+    condition:
+      - condition: template
+        value_template: "{{ now().day == 1 }}"
+    action:
+      - service: input_number.set_value
+        target:
+          entity_id: input_number.prepaid_energy_month_total
+        data:
+          value: 0
+
+  - id: solar_accumulate_energy_every_10s
+    alias: Solar Accumulate Energy Every 10s
+    trigger:
+      - platform: time_pattern
+        seconds: "/10"
+    variables:
+      solar_power_w: "{{ states('sensor.deye_sunsynk_sol_ark_load_power_essential') | float(0) }}"
+      solar_used_kwh: "{{ (solar_power_w * 10 / 3600000) | float(0) }}"
+      total_now: "{{ states('input_number.solar_energy_used_total') | float(0) }}"
+      today_now: "{{ states('input_number.solar_energy_today_total') | float(0) }}"
+      month_now: "{{ states('input_number.solar_energy_month_total') | float(0) }}"
+    action:
+      - service: input_number.set_value
+        target:
+          entity_id: input_number.solar_energy_used_total
+        data:
+          value: "{{ total_now + solar_used_kwh }}"
+      - service: input_number.set_value
+        target:
+          entity_id: input_number.solar_energy_today_total
+        data:
+          value: "{{ today_now + solar_used_kwh }}"
+      - service: input_number.set_value
+        target:
+          entity_id: input_number.solar_energy_month_total
+        data:
+          value: "{{ month_now + solar_used_kwh }}"
+
+  - id: solar_reset_daily_total
+    alias: Solar Reset Daily Total
+    trigger:
+      - platform: time
+        at: "00:00:00"
+    action:
+      - service: input_number.set_value
+        target:
+          entity_id: input_number.solar_energy_today_total
+        data:
+          value: 0
+
+  - id: solar_reset_month_total
+    alias: Solar Reset Month Total
+    trigger:
+      - platform: time
+        at: "00:00:00"
+    condition:
+      - condition: template
+        value_template: "{{ now().day == 1 }}"
+    action:
+      - service: input_number.set_value
+        target:
+          entity_id: input_number.solar_energy_month_total
+        data:
+          value: 0
